@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "exam-prep-agents-skill"
+version = "0.1.0"
+description = "Portable agent skill for validated offline exam-prep packages"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.8,<3",
+  "pymupdf>=1.24,<2",
+  "torch>=2.2,<2.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+  "torch>=2.2,<3; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+  "typer>=0.12,<1",
+]
+
+[project.scripts]
+exam-prep-skill = "exam_prep_skill.cli:app"
+
+[dependency-groups]
+dev = [
+  "basedpyright>=1.29",
+  "pytest>=8.3",
+  "ruff>=0.12",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/exam_prep_skill"]
+
+[tool.basedpyright]
+typeCheckingMode = "strict"
+pythonVersion = "3.11"
+include = ["src"]
+exclude = ["**/__pycache__", "**/.venv", "build", "dist"]
+reportUnnecessaryTypeIgnoreComment = "error"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "COM812",
+  "CPY001",
+  "D203",
+  "D213",
+  "FBT001",
+  "FBT002",
+  "ISC001",
+  "TC003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D", "PLR2004", "S101"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-config", "--strict-markers"]
+filterwarnings = ["error"]
