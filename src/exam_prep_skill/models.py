@@ -136,3 +136,50 @@ class PackageRecord(FrozenModel):
     output_path: Path
     item_count: int = Field(ge=1)
     created_at: str = Field(min_length=1)
+
+
+class LearnerFlashcard(FrozenModel):
+    """Accepted card exposed to a learner package."""
+
+    card_id: str
+    objective_id: str
+    objective_code: str
+    objective_title: str
+    module_title: str
+    prompt: str
+    answer: str
+    slot: str
+    difficulty: str
+    source_pages: tuple[int, ...]
+
+
+class LearnerFlashcardDeck(FrozenModel):
+    """Self-contained flashcard package payload."""
+
+    package_id: str
+    title: str
+    cards: tuple[LearnerFlashcard, ...] = Field(min_length=1)
+
+
+class LearnerExamQuestion(FrozenModel):
+    """Verified question exposed to a learner package."""
+
+    question_id: str
+    position: int = Field(ge=1)
+    prompt: str
+    choices: tuple[str, ...] = Field(min_length=2)
+    correct_choice: str
+    explanation: str
+    objective_code: str
+    objective_title: str
+    source_pages: tuple[int, ...]
+    difficulty: str
+
+
+class LearnerExam(FrozenModel):
+    """Self-contained mock-exam package payload."""
+
+    package_id: str
+    title: str
+    duration_minutes: int = Field(ge=1)
+    questions: tuple[LearnerExamQuestion, ...] = Field(min_length=1)
