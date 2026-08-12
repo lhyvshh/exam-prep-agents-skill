@@ -70,6 +70,6 @@ quote-style = "double"
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
-pythonpath = ["skills/producing-exam-prep-packages/scripts"]
+pythonpath = [".", "skills/producing-exam-prep-packages/scripts"]
 addopts = ["-ra", "--strict-config", "--strict-markers"]
 filterwarnings = ["error"]
