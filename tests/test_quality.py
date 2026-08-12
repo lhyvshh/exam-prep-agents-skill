@@ -3,10 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from exam_prep_skill.extraction import parse_exam_text
-from exam_prep_skill.models import CandidateSubmission, WorkItem
+from exam_prep_skill.extraction import parse_book_pages, parse_exam_text, parse_page_fixture
+from exam_prep_skill.models import CandidateSubmission, FlashcardCandidate, WorkItem
 from exam_prep_skill.quality import QualityGate
-from exam_prep_skill.queue import QueueStore, build_exam_items
+from exam_prep_skill.queue import QueueStore, build_exam_items, build_flashcard_items
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CHECKPOINT = (
@@ -102,3 +102,55 @@ def test_gate_exhausts_item_without_lowering_threshold(tmp_path: Path) -> None:
     assert not result.accepted
     assert store.next_item() is None
     assert store.items[0].status.value == "exhausted"
+
+
+def test_gate_rejects_flashcard_below_pytorch_threshold(tmp_path: Path) -> None:
+    curriculum = parse_book_pages(
+        "Synthetic FRM Book",
+        parse_page_fixture((FIXTURES / "frm_style_book.txt").read_text()),
+        preset="frm-part-1",
+    )
+    item = build_flashcard_items(curriculum, target_per_objective=1)[0]
+    store = QueueStore.create(tmp_path, (item,), QualityGate(CHECKPOINT))
+    candidate = FlashcardCandidate(
+        item_id=item.item_id,
+        card_id="weak-card",
+        objective_id=item.objective_id or "",
+        slot=item.slot or "",
+        prompt="What is expected loss?",
+        answer="It is a weighted loss.",
+        difficulty="exam",
+        source_pages=(item.evidence[0].page,),
+    )
+
+    result = store.submit(
+        CandidateSubmission(item_id=item.item_id, payload_json=candidate.model_dump_json())
+    )
+
+    assert not result.accepted
+    assert "pytorch_quality" in {issue.code for issue in result.issues}
+
+
+def test_gate_rejects_question_that_changes_blueprint_objective_or_type(tmp_path: Path) -> None:
+    item = _item()
+    store = QueueStore.create(tmp_path, (item,), QualityGate(CHECKPOINT))
+    payload = json.loads(
+        _submission(
+            item.item_id,
+            prompt=(
+                "A risk officer reviews several outcomes. Which method correctly computes the "
+                "expected monetary loss?"
+            ),
+        ).payload_json
+    )
+    payload["objective_code"] = "LO 9.z"
+    payload["question_type"] = "calculation"
+
+    result = store.submit(
+        CandidateSubmission(item_id=item.item_id, payload_json=json.dumps(payload))
+    )
+
+    issue_codes = {issue.code for issue in result.issues}
+    assert not result.accepted
+    assert "objective_mismatch" in issue_codes
+    assert "question_type_mismatch" in issue_codes

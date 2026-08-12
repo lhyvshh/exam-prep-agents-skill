@@ -93,9 +93,10 @@ class QualityGate:
             issues.append(_issue("language_quality", "Card contains malformed or vague language."))
         if issues:
             return _rejected(item, issues), None
-        return _accepted(
-            item, self._score(candidate.prompt, candidate.answer), self
-        ), candidate.prompt
+        score = self._score(candidate.prompt, candidate.answer)
+        if score < QUALITY_THRESHOLD:
+            return _quality_rejection(item, score, self), None
+        return _accepted(item, score, self), candidate.prompt
 
     def _validate_question(
         self,
@@ -113,16 +114,7 @@ class QualityGate:
             return _rejected(item, issues), None
         score = self._score(candidate.prompt, candidate.explanation)
         if score < QUALITY_THRESHOLD:
-            return _rejected(
-                item,
-                [
-                    _issue(
-                        "pytorch_quality", "Candidate did not meet the PyTorch quality threshold."
-                    )
-                ],
-                score=score,
-                gate=self,
-            ), None
+            return _quality_rejection(item, score, self), None
         return _accepted(item, score, self), candidate.prompt
 
     def _score(self, prompt: str, explanation: str) -> float:
@@ -171,6 +163,19 @@ def _structural_question_issues(
         issues.append(_issue("duplicate_choice", "Answer choices must be distinct."))
     if candidate.item_id != item.item_id:
         issues.append(_issue("item_mismatch", "Candidate item identifier does not match."))
+    expected_objective = str(blueprint.get("objective_code", "")).strip()
+    if expected_objective and candidate.objective_code.casefold() != expected_objective.casefold():
+        issues.append(
+            _issue("objective_mismatch", "Question does not match its source blueprint objective.")
+        )
+    expected_type = str(blueprint.get("question_type", "")).strip()
+    if expected_type and candidate.question_type.casefold() != expected_type.casefold():
+        issues.append(
+            _issue(
+                "question_type_mismatch",
+                "Question does not match its source blueprint cognitive format.",
+            )
+        )
     if not set(candidate.source_pages).issubset(_evidence_pages(item)):
         issues.append(_issue("invalid_evidence", "Question cites a page outside its evidence."))
     return issues
@@ -228,6 +233,15 @@ def _rejected(
         score=score,
         model_source="pytorch_checkpoint" if gate else None,
         checkpoint_sha256=gate.checkpoint_sha256 if gate else None,
+    )
+
+
+def _quality_rejection(item: WorkItem, score: float, gate: QualityGate) -> ValidationResult:
+    return _rejected(
+        item,
+        [_issue("pytorch_quality", "Candidate did not meet the PyTorch quality threshold.")],
+        score=score,
+        gate=gate,
     )
 
 

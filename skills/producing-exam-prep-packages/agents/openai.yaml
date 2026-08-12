@@ -1,0 +1,4 @@
+interface:
+  display_name: "Exam Prep Package Producer"
+  short_description: "Build validated offline study packages"
+  default_prompt: "Use $producing-exam-prep-packages to turn my exam books and sample exams into offline flashcards or a mock exam."

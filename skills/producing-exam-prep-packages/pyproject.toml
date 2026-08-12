@@ -1,0 +1,16 @@
+[project]
+name = "exam-prep-agent-skill-runtime"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=1.26,<2",
+  "pydantic>=2.8,<3",
+  "pymupdf>=1.24,<1.28; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+  "pymupdf>=1.24,<2; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+  "torch>=2.2,<2.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+  "torch>=2.2,<3; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+  "typer>=0.12,<1",
+]
+
+[tool.uv]
+package = false

@@ -54,6 +54,12 @@ def build_flashcard_items(
     items: list[WorkItem] = []
     for module in curriculum.modules:
         for objective in module.objectives:
+            concept_source = SourceRef(
+                source_id=curriculum.source_id,
+                title=module.title,
+                page=module.start_page,
+                excerpt=module.key_concepts or objective.title,
+            )
             for slot in slots:
                 item_id = f"card-{objective.objective_id}-{slot}"
                 items.append(
@@ -66,22 +72,41 @@ def build_flashcard_items(
                             f"Create one {slot} flashcard for {objective.code}: {objective.title}. "
                             "Use only the supplied evidence and cite its physical page."
                         ),
-                        evidence=objective.sources,
+                        evidence=(*objective.sources, concept_source),
                     )
                 )
     return tuple(items)
 
 
-def build_exam_items(exam: SourceExamRecord) -> tuple[WorkItem, ...]:
+def build_exam_items(
+    exam: SourceExamRecord,
+    curriculum: CurriculumRecord | None = None,
+) -> tuple[WorkItem, ...]:
     """Create one generated-question task for every source-exam position."""
     items: list[WorkItem] = []
+    objective_evidence: dict[str, tuple[SourceRef, ...]] = {}
+    if curriculum is not None:
+        for module in curriculum.modules:
+            for objective in module.objectives:
+                objective_evidence[objective.code.casefold()] = (
+                    *objective.sources,
+                    SourceRef(
+                        source_id=curriculum.source_id,
+                        title=module.title,
+                        page=module.start_page,
+                        excerpt=module.key_concepts or objective.title,
+                    ),
+                )
     for question in exam.questions:
         item_id = f"exam-{exam.exam_id}-{question.position:03d}"
         source = SourceRef(
             source_id=exam.exam_id,
             title=exam.title,
             page=1,
-            excerpt=question.prompt,
+            excerpt=(
+                f"{question.prompt}\nCorrect answer: {question.correct_choice}. "
+                f"{question.explanation}"
+            ),
         )
         items.append(
             WorkItem(
@@ -95,7 +120,7 @@ def build_exam_items(exam: SourceExamRecord) -> tuple[WorkItem, ...]:
                     "difficulty, and choice count, but a different scenario, facts, and "
                     "reasoning angle."
                 ),
-                evidence=(source,),
+                evidence=(*objective_evidence.get(question.objective_code.casefold(), ()), source),
             )
         )
     return tuple(items)
@@ -104,7 +129,7 @@ def build_exam_items(exam: SourceExamRecord) -> tuple[WorkItem, ...]:
 class QueueStore:
     """Persist queue transitions and accepted candidates atomically."""
 
-    def __init__(self, root: Path, state: QueueState, gate: QualityGate) -> None:
+    def __init__(self, root: Path, state: QueueState, gate: QualityGate | None) -> None:
         """Create a queue around already parsed state."""
         self.root = root
         self.state = state
@@ -120,7 +145,7 @@ class QueueStore:
         cls,
         root: Path,
         items: tuple[WorkItem, ...],
-        gate: QualityGate,
+        gate: QualityGate | None = None,
         *,
         max_attempts: int = 3,
     ) -> QueueStore:
@@ -132,7 +157,7 @@ class QueueStore:
         return store
 
     @classmethod
-    def open(cls, root: Path, gate: QualityGate) -> QueueStore:
+    def open(cls, root: Path, gate: QualityGate | None = None) -> QueueStore:
         """Resume an existing queue without regenerating accepted material."""
         state = QueueState.model_validate_json((root / "queue.json").read_text(encoding="utf-8"))
         return cls(root, state, gate)
@@ -145,6 +170,9 @@ class QueueStore:
 
     def submit(self, submission: CandidateSubmission) -> ValidationResult:
         """Validate one candidate and persist only accepted learner content."""
+        if self.gate is None:
+            msg = "A quality gate is required to submit candidates"
+            raise RuntimeError(msg)
         index = next(
             (
                 position
