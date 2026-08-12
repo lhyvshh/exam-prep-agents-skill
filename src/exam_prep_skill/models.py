@@ -65,6 +65,8 @@ class WorkItem(FrozenModel):
     kind: PackageKind
     objective_id: str | None = None
     blueprint_position: int | None = Field(default=None, ge=1)
+    blueprint_json: str | None = None
+    slot: str | None = None
     instructions: str = Field(min_length=1)
     evidence: tuple[SourceRef, ...] = ()
     status: WorkItemStatus = WorkItemStatus.PENDING
@@ -92,6 +94,37 @@ class ValidationResult(FrozenModel):
     item_id: str = Field(min_length=1)
     issues: tuple[ValidationIssue, ...] = ()
     score: float | None = Field(default=None, ge=0, le=1)
+    model_source: str | None = None
+    checkpoint_sha256: str | None = None
+
+
+class FlashcardCandidate(FrozenModel):
+    """Structured flashcard candidate supplied by the host agent."""
+
+    item_id: str = Field(min_length=1)
+    card_id: str = Field(min_length=1)
+    objective_id: str = Field(min_length=1)
+    slot: str = Field(min_length=1)
+    prompt: str = Field(min_length=8)
+    answer: str = Field(min_length=8)
+    difficulty: str = Field(min_length=1)
+    source_pages: tuple[int, ...] = Field(min_length=1)
+
+
+class ExamQuestionCandidate(FrozenModel):
+    """Structured mock-exam candidate supplied by the host agent."""
+
+    item_id: str = Field(min_length=1)
+    question_id: str = Field(min_length=1)
+    prompt: str = Field(min_length=8)
+    choices: tuple[str, ...] = Field(min_length=2)
+    correct_choice: str = Field(pattern=r"^[A-Z]$")
+    explanation: str = Field(min_length=20)
+    verification: str = Field(min_length=12)
+    source_pages: tuple[int, ...] = Field(min_length=1)
+    objective_code: str
+    question_type: str = Field(min_length=1)
+    difficulty: str = Field(min_length=1)
 
 
 class PackageRecord(FrozenModel):

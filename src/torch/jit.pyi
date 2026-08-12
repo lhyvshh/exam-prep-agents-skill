@@ -1,0 +1,9 @@
+from typing import Self
+
+from torch import Tensor
+
+class ScriptModule:
+    def eval(self) -> Self: ...
+    def __call__(self, features: Tensor) -> Tensor: ...
+
+def load(f: str, map_location: str = ...) -> ScriptModule: ...

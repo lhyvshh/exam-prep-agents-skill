@@ -101,8 +101,9 @@ def parse_page_fixture(text: str) -> tuple[DocumentPage, ...]:
 
 def parse_pdf(path: Path) -> tuple[DocumentPage, ...]:
     """Extract PDF text in an isolated process to contain native-library failures."""
+    worker_path = Path(__file__).with_name("pdf_worker.py")
     completed = subprocess.run(  # noqa: S603
-        [sys.executable, "-m", "exam_prep_skill.pdf_worker", str(path.resolve())],
+        [sys.executable, str(worker_path), str(path.resolve())],
         check=True,
         capture_output=True,
         text=True,
