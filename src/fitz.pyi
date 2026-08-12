@@ -1,0 +1,13 @@
+from collections.abc import Iterator
+from pathlib import Path
+
+VersionBind: str
+
+class Page:
+    def get_text(self, option: str = ...) -> str: ...
+
+class Document:
+    def __iter__(self) -> Iterator[Page]: ...
+    def close(self) -> None: ...
+
+def open(filename: str | Path) -> Document: ...

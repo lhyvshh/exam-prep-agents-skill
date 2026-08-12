@@ -1,0 +1,25 @@
+--- PAGE 1 ---
+CONTENTS
+Study Session 1 ........ 2
+Index ........ 5
+--- PAGE 2 ---
+STUDY SESSION 1: FOUNDATIONS
+READING 1: RISK BASICS
+MODULE 1.1: MEASURING RISK
+LO 1.a: Explain expected loss and unexpected loss.
+KEY CONCEPTS
+Expected loss is the probability-weighted average loss.
+Unexpected loss describes dispersion around expected loss.
+MODULE QUIZ 1.1
+1. Which statement best describes expected loss?
+A. The maximum possible loss.
+B. The probability-weighted average loss.
+C. The loss above regulatory capital.
+D. The standard deviation of profits.
+--- PAGE 3 ---
+ANSWER KEY FOR MODULE QUIZZES
+MODULE QUIZ 1.1
+1. B. Expected loss weights each possible loss by its probability.
+--- PAGE 4 ---
+INDEX
+Expected loss, 2

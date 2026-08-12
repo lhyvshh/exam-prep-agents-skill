@@ -9,7 +9,8 @@ description = "Portable agent skill for validated offline exam-prep packages"
 requires-python = ">=3.11"
 dependencies = [
   "pydantic>=2.8,<3",
-  "pymupdf>=1.24,<2",
+  "pymupdf>=1.24,<1.28; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+  "pymupdf>=1.24,<2; sys_platform != 'darwin' or platform_machine != 'x86_64'",
   "torch>=2.2,<2.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
   "torch>=2.2,<3; sys_platform != 'darwin' or platform_machine != 'x86_64'",
   "typer>=0.12,<1",
@@ -54,7 +55,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["D", "PLR2004", "S101"]
+"tests/**/*.py" = ["D", "PLR2004", "S101", "S603"]
+"src/fitz.pyi" = ["A001"]
 
 [tool.ruff.format]
 quote-style = "double"

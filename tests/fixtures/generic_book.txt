@@ -1,0 +1,9 @@
+--- PAGE 1 ---
+UNIT: APPLIED STATISTICS
+LESSON: PROBABILITY
+Learning goal: Calculate and interpret expected value.
+Expected value is the sum of each outcome multiplied by its probability.
+--- PAGE 2 ---
+LESSON: DISPERSION
+Learning goal: Compare variance and standard deviation.
+Variance is the probability-weighted squared deviation from the mean.

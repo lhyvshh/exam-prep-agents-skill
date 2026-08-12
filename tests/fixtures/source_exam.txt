@@ -1,0 +1,16 @@
+EXAM 1
+1. [LO 1.a] Which statement best describes expected loss?
+A. The largest observed loss
+B. The probability-weighted average loss
+C. The loss after insurance
+D. The variance of returns
+
+2. [LO 1.a] A portfolio has a 20% chance of losing 10 and an 80% chance of losing 0. What is expected loss?
+A. 0
+B. 2
+C. 8
+D. 10
+
+ANSWER KEY
+1. B. Expected loss is the probability-weighted average loss.
+2. B. Expected loss is 0.20 x 10 + 0.80 x 0 = 2.
