@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import json
+import warnings
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+from exam_prep_skill import quality as quality_module
 from exam_prep_skill.extraction import parse_book_pages, parse_exam_text, parse_page_fixture
 from exam_prep_skill.models import CandidateSubmission, FlashcardCandidate, WorkItem
 from exam_prep_skill.quality import QualityGate
 from exam_prep_skill.queue import QueueStore, build_exam_items, build_flashcard_items
+
+if TYPE_CHECKING:
+    import pytest
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CHECKPOINT = (
@@ -183,3 +189,25 @@ def test_gate_rejects_question_that_changes_blueprint_objective_or_type(tmp_path
     assert not result.accepted
     assert "objective_mismatch" in issue_codes
     assert "question_type_mismatch" in issue_codes
+
+
+def test_gate_contains_torch_jit_deprecation_inside_checkpoint_loader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_load = quality_module.load
+
+    def deprecated_load(*args: object, **kwargs: object) -> object:
+        warnings.warn(
+            "`torch.jit.load` is deprecated. Please switch to `torch.export`.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return original_load(*args, **kwargs)
+
+    monkeypatch.setattr(quality_module, "load", deprecated_load)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        gate = QualityGate(CHECKPOINT)
+
+    assert gate.checkpoint_sha256

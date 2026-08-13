@@ -60,7 +60,7 @@ def test_exam_parser_preserves_question_order_choices_and_answer_explanations() 
 def test_pdf_extraction_preserves_physical_page_numbers(tmp_path: Path) -> None:
     pdf_path = tmp_path / "book.pdf"
     script = (
-        "import fitz,sys; d=fitz.open(); "
+        "import pymupdf as fitz,sys; d=fitz.open(); "
         "p=d.new_page(); p.insert_text((72,72),'MODULE 4.1: INTRODUCTION'); "
         "p=d.new_page(); p.insert_text((72,72),'LO 4.a: Explain the concept.'); "
         "d.save(sys.argv[1]); d.close()"
@@ -71,3 +71,17 @@ def test_pdf_extraction_preserves_physical_page_numbers(tmp_path: Path) -> None:
 
     assert [page.physical_page for page in pages] == [1, 2]
     assert pages[1].text.startswith("LO 4.a")
+
+
+def test_pdf_worker_uses_current_pymupdf_import_without_stdout_deprecation() -> None:
+    worker = (
+        Path(__file__).parents[1]
+        / "skills"
+        / "producing-exam-prep-packages"
+        / "scripts"
+        / "exam_prep_skill"
+        / "pdf_worker.py"
+    ).read_text(encoding="utf-8")
+
+    assert "import pymupdf as fitz" in worker
+    assert "\nimport fitz" not in worker

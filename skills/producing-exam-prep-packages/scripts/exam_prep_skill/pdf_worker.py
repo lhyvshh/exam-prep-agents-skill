@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-import fitz
+import pymupdf as fitz
 
 
 def main() -> None:

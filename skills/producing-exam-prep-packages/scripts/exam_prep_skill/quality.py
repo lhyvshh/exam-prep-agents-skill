@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import warnings
 from pathlib import Path
 from typing import Final
 
@@ -44,10 +45,16 @@ class QualityGate:
         self.checkpoint_path = checkpoint_path
         checkpoint_bytes = checkpoint_path.read_bytes()
         self.checkpoint_sha256 = hashlib.sha256(checkpoint_bytes).hexdigest()
-        self.model: ScriptModule = load(
-            str(checkpoint_path),
-            map_location="cpu",
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"`torch\.jit\.load` is deprecated\..*",
+                category=DeprecationWarning,
+            )
+            self.model: ScriptModule = load(
+                str(checkpoint_path),
+                map_location="cpu",
+            )
         self.model.eval()
 
     def validate(
