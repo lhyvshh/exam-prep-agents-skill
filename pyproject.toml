@@ -12,8 +12,7 @@ dependencies = [
   "pydantic>=2.8,<3",
   "pymupdf>=1.24,<1.28; sys_platform == 'darwin' and platform_machine == 'x86_64'",
   "pymupdf>=1.24,<2; sys_platform != 'darwin' or platform_machine != 'x86_64'",
-  "torch>=2.2,<2.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-  "torch>=2.2,<3; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+  "torch>=2.13,<3; sys_platform != 'darwin' or platform_machine != 'x86_64'",
   "typer>=0.12,<1",
 ]
 
@@ -32,6 +31,7 @@ packages = ["skills/producing-exam-prep-packages/scripts/exam_prep_skill"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "skills/producing-exam-prep-packages/assets/question_quality_classifier.pt" = "exam_prep_skill/assets/question_quality_classifier.pt"
+"skills/producing-exam-prep-packages/assets/question_quality_classifier.json" = "exam_prep_skill/assets/question_quality_classifier.json"
 
 [tool.basedpyright]
 typeCheckingMode = "strict"

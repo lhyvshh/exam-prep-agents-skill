@@ -110,7 +110,8 @@ def test_queue_accepts_grounded_question_with_pytorch_provenance(tmp_path: Path)
     result = store.submit(candidate)
 
     assert result.accepted
-    assert result.model_source == "pytorch_checkpoint"
+    assert result.model_source is not None
+    assert result.model_source.startswith("pytorch")
     assert result.checkpoint_sha256
     assert result.score is not None
     assert result.score >= 0.70

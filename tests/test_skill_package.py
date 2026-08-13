@@ -14,6 +14,7 @@ def test_skill_folder_is_self_contained_for_standard_agent_installers() -> None:
         SKILL / "scripts" / "run.py",
         SKILL / "scripts" / "exam_prep_skill" / "cli.py",
         SKILL / "assets" / "question_quality_classifier.pt",
+        SKILL / "assets" / "question_quality_classifier.json",
     )
 
     assert all(path.is_file() for path in required)

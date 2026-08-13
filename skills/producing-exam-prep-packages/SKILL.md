@@ -35,7 +35,7 @@ The default is ten distinct cards per learning objective. Preserve the full LO t
 4. Submit with `submit`, fix all gate failures, and continue until complete.
 5. Run `render WORKSPACE` only after every position is accepted.
 
-Never repeat or lightly paraphrase source questions, generated questions, choices, or scenarios. The runtime maintains the accepted-question registry and applies deterministic checks before its bundled PyTorch checkpoint.
+Never repeat or lightly paraphrase source questions, generated questions, choices, or scenarios. The runtime maintains the accepted-question registry and applies deterministic checks before its bundled PyTorch classifier. On platforms without a current PyTorch wheel, it uses the bundled hash-verified portable export of the same classifier.
 
 ## Presets
 

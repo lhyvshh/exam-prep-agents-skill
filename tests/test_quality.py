@@ -3,16 +3,14 @@ from __future__ import annotations
 import json
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING
+
+import pytest
 
 from exam_prep_skill import quality as quality_module
 from exam_prep_skill.extraction import parse_book_pages, parse_exam_text, parse_page_fixture
 from exam_prep_skill.models import CandidateSubmission, FlashcardCandidate, WorkItem
 from exam_prep_skill.quality import QualityGate
 from exam_prep_skill.queue import QueueStore, build_exam_items, build_flashcard_items
-
-if TYPE_CHECKING:
-    import pytest
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CHECKPOINT = (
@@ -194,7 +192,9 @@ def test_gate_rejects_question_that_changes_blueprint_objective_or_type(tmp_path
 def test_gate_contains_torch_jit_deprecation_inside_checkpoint_loader(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    original_load = quality_module.load
+    if quality_module._load_torch_runtime() is None:  # noqa: SLF001
+        pytest.skip("Current platform uses the portable PyTorch export.")
+    original_load = quality_module._torch_jit_load  # noqa: SLF001
 
     def deprecated_load(*args: object, **kwargs: object) -> object:
         warnings.warn(
@@ -204,10 +204,31 @@ def test_gate_contains_torch_jit_deprecation_inside_checkpoint_loader(
         )
         return original_load(*args, **kwargs)
 
-    monkeypatch.setattr(quality_module, "load", deprecated_load)
+    monkeypatch.setattr(quality_module, "_torch_jit_load", deprecated_load)
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         gate = QualityGate(CHECKPOINT)
 
     assert gate.checkpoint_sha256
+
+
+def test_portable_export_matches_pytorch_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    item = _item()
+    candidate = _submission(
+        item.item_id,
+        prompt="A risk officer reviews several outcomes. Which method computes expected loss?",
+    )
+    runtime_result = QualityGate(CHECKPOINT).validate(item, candidate, ())[0]
+
+    monkeypatch.setattr(quality_module, "_load_torch_runtime", lambda: None)
+    portable_result = QualityGate(CHECKPOINT).validate(item, candidate, ())[0]
+
+    assert runtime_result.accepted
+    assert portable_result.accepted
+    assert portable_result.model_source == "pytorch_portable_export"
+    assert portable_result.score == pytest.approx(0.9024722, abs=1e-6)
+    assert portable_result.score == pytest.approx(runtime_result.score, abs=1e-6)
+    assert portable_result.checkpoint_sha256 == runtime_result.checkpoint_sha256

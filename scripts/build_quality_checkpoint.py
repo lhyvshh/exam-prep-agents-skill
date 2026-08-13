@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["numpy>=1.26,<2", "torch>=2.2,<3"]
+# dependencies = ["numpy>=1.26,<2", "torch>=2.13,<3"]
 # ///
 """Build the deterministic local question-quality checkpoint.
 
@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 from pathlib import Path
 
 import torch
@@ -24,6 +25,7 @@ CHECKPOINT = (
     / "assets"
     / "question_quality_classifier.pt"
 )
+PORTABLE_EXPORT = CHECKPOINT.with_suffix(".json")
 EXPECTED_WEIGHTS = torch.tensor([0.9, 1.0, 0.7, 0.9, 0.9], dtype=torch.float32)
 EXPECTED_BIAS = torch.tensor(-2.0, dtype=torch.float32)
 
@@ -47,7 +49,22 @@ def build() -> str:
     CHECKPOINT.parent.mkdir(parents=True, exist_ok=True)
     model = torch.jit.script(QualityModel())
     torch.jit.save(model, str(CHECKPOINT))
-    return hashlib.sha256(CHECKPOINT.read_bytes()).hexdigest()
+    digest = hashlib.sha256(CHECKPOINT.read_bytes()).hexdigest()
+    PORTABLE_EXPORT.write_text(
+        json.dumps(
+            {
+                "bias": float(EXPECTED_BIAS.item()),
+                "format": "exam-prep-pytorch-linear-v1",
+                "source_checkpoint_sha256": digest,
+                "weights": [float(value) for value in EXPECTED_WEIGHTS.tolist()],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return digest
 
 
 def check() -> str:
@@ -58,7 +75,18 @@ def check() -> str:
     if not torch.equal(model(probe), expected):
         msg = "checkpoint parameters do not match the release definition"
         raise RuntimeError(msg)
-    return hashlib.sha256(CHECKPOINT.read_bytes()).hexdigest()
+    digest = hashlib.sha256(CHECKPOINT.read_bytes()).hexdigest()
+    portable = json.loads(PORTABLE_EXPORT.read_text(encoding="utf-8"))
+    if portable.get("source_checkpoint_sha256") != digest:
+        msg = "portable export does not match the release checkpoint"
+        raise RuntimeError(msg)
+    if portable.get("weights") != [float(value) for value in EXPECTED_WEIGHTS.tolist()]:
+        msg = "portable export weights do not match the release definition"
+        raise RuntimeError(msg)
+    if portable.get("bias") != float(EXPECTED_BIAS.item()):
+        msg = "portable export bias does not match the release definition"
+        raise RuntimeError(msg)
+    return digest
 
 
 def main() -> None:

@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: uv
+    directories:
+      - /
+      - /skills/producing-exam-prep-packages
+    schedule:
+      interval: weekly
+    groups:
+      python-runtime:
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

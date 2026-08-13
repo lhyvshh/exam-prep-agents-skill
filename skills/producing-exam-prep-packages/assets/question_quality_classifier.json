@@ -1,0 +1,6 @@
+{
+  "bias": -2.0,
+  "format": "exam-prep-pytorch-linear-v1",
+  "source_checkpoint_sha256": "969db921c94b9f58fb3282e616d4ff3a3c9bb063e603df6b85b2c15a7344f7a1",
+  "weights": [0.9, 1.0, 0.7, 0.9, 0.9]
+}

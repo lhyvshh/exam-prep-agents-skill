@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
+import math
 import re
 import warnings
 from pathlib import Path
-from typing import Final
+from types import TracebackType
+from typing import Final, Literal, Protocol, cast
 
-from pydantic import ValidationError
+import numpy as np
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from exam_prep_skill.models import (
     CandidateSubmission,
@@ -20,8 +24,6 @@ from exam_prep_skill.models import (
     ValidationResult,
     WorkItem,
 )
-from torch import float32, no_grad, tensor
-from torch.jit import ScriptModule, load
 
 QUALITY_THRESHOLD: Final = 0.70
 SOURCE_COPY_THRESHOLD: Final = 0.82
@@ -35,6 +37,100 @@ GRAMMAR_PATTERN: Final = re.compile(
     r"\b(?:it are|they is|does not correctly applies)\b",
     re.IGNORECASE,
 )
+PORTABLE_EXPORT_FORMAT: Final = "exam-prep-pytorch-linear-v1"
+
+
+class _ScoreTensor(Protocol):
+    def item(self) -> float: ...
+
+
+class _TorchModel(Protocol):
+    def eval(self) -> object: ...
+
+    def __call__(self, features: object) -> _ScoreTensor: ...
+
+
+class _TorchJit(Protocol):
+    def load(self, path: str, *, map_location: str) -> _TorchModel: ...
+
+
+class _NoGradContext(Protocol):
+    def __enter__(self) -> object: ...
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool | None: ...
+
+
+class _TorchRuntime(Protocol):
+    float32: object
+    jit: _TorchJit
+
+    def tensor(self, data: list[float], *, dtype: object) -> object: ...
+
+    def no_grad(self) -> _NoGradContext: ...
+
+
+class _Scorer(Protocol):
+    def score(self, features: list[float]) -> float: ...
+
+
+class _PortableExport(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    format: Literal["exam-prep-pytorch-linear-v1"]
+    source_checkpoint_sha256: str
+    weights: tuple[float, float, float, float, float]
+    bias: float
+
+
+class _PytorchScorer:
+    def __init__(self, runtime: _TorchRuntime, model: _TorchModel) -> None:
+        self.runtime = runtime
+        self.model = model
+        self.model.eval()
+
+    def score(self, features: list[float]) -> float:
+        feature_tensor = self.runtime.tensor(features, dtype=self.runtime.float32)
+        with self.runtime.no_grad():
+            return float(self.model(feature_tensor).item())
+
+
+class _PortableScorer:
+    def __init__(self, export: _PortableExport) -> None:
+        self.weights = np.asarray(export.weights, dtype=np.float32)
+        self.bias = np.float32(export.bias)
+
+    def score(self, features: list[float]) -> float:
+        feature_array = np.asarray(features, dtype=np.float32)
+        logit = np.float32(np.dot(feature_array, self.weights) + self.bias)
+        return float(1.0 / (1.0 + math.exp(-float(logit))))
+
+
+def _load_torch_runtime() -> _TorchRuntime | None:
+    try:
+        module = importlib.import_module("torch")
+    except (ImportError, OSError):
+        return None
+    if not all(hasattr(module, attribute) for attribute in ("float32", "jit", "no_grad", "tensor")):
+        return None
+    return cast("_TorchRuntime", module)
+
+
+def _torch_jit_load(runtime: _TorchRuntime, checkpoint_path: Path) -> _TorchModel:
+    return runtime.jit.load(str(checkpoint_path), map_location="cpu")
+
+
+def _portable_scorer(checkpoint_path: Path, checkpoint_sha256: str) -> _PortableScorer:
+    export_path = checkpoint_path.with_suffix(".json")
+    export = _PortableExport.model_validate_json(export_path.read_text(encoding="utf-8"))
+    if export.source_checkpoint_sha256 != checkpoint_sha256:
+        msg = "portable quality export does not match the bundled PyTorch checkpoint"
+        raise RuntimeError(msg)
+    return _PortableScorer(export)
 
 
 class QualityGate:
@@ -45,17 +141,20 @@ class QualityGate:
         self.checkpoint_path = checkpoint_path
         checkpoint_bytes = checkpoint_path.read_bytes()
         self.checkpoint_sha256 = hashlib.sha256(checkpoint_bytes).hexdigest()
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                message=r"`torch\.jit\.load` is deprecated\..*",
-                category=DeprecationWarning,
-            )
-            self.model: ScriptModule = load(
-                str(checkpoint_path),
-                map_location="cpu",
-            )
-        self.model.eval()
+        runtime = _load_torch_runtime()
+        if runtime is None:
+            self.scorer: _Scorer = _portable_scorer(checkpoint_path, self.checkpoint_sha256)
+            self.model_source = "pytorch_portable_export"
+        else:
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message=r"`torch\.jit\.load` is deprecated\..*",
+                    category=DeprecationWarning,
+                )
+                model = _torch_jit_load(runtime, checkpoint_path)
+            self.scorer = _PytorchScorer(runtime, model)
+            self.model_source = "pytorch_checkpoint"
 
     def validate(
         self,
@@ -137,18 +236,14 @@ class QualityGate:
     def _score(self, prompt: str, explanation: str) -> float:
         prompt_words = len(TOKEN_PATTERN.findall(prompt.casefold()))
         explanation_words = len(TOKEN_PATTERN.findall(explanation.casefold()))
-        features = tensor(
-            [
-                min(prompt_words / 12, 1),
-                min(explanation_words / 20, 1),
-                float(prompt.rstrip().endswith("?")),
-                float(not _language_issue(prompt)),
-                float(explanation_words >= EXPLANATION_FEATURE_WORDS),
-            ],
-            dtype=float32,
-        )
-        with no_grad():
-            return float(self.model(features).item())
+        features = [
+            min(prompt_words / 12, 1),
+            min(explanation_words / 20, 1),
+            float(prompt.rstrip().endswith("?")),
+            float(not _language_issue(prompt)),
+            float(explanation_words >= EXPLANATION_FEATURE_WORDS),
+        ]
+        return self.scorer.score(features)
 
 
 def _question_issues(
@@ -257,7 +352,7 @@ def _rejected(
         item_id=item.item_id,
         issues=tuple(issues),
         score=score,
-        model_source="pytorch_checkpoint" if gate else None,
+        model_source=gate.model_source if gate else None,
         checkpoint_sha256=gate.checkpoint_sha256 if gate else None,
     )
 
@@ -276,7 +371,7 @@ def _accepted(item: WorkItem, score: float, gate: QualityGate) -> ValidationResu
         accepted=True,
         item_id=item.item_id,
         score=score,
-        model_source="pytorch_checkpoint",
+        model_source=gate.model_source,
         checkpoint_sha256=gate.checkpoint_sha256,
     )
 

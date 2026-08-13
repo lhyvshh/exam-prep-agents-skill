@@ -32,3 +32,4 @@ def test_wheel_configuration_includes_quality_checkpoint_inside_runtime_package(
 
     assert "[tool.hatch.build.targets.wheel.force-include]" in project
     assert '"exam_prep_skill/assets/question_quality_classifier.pt"' in project
+    assert '"exam_prep_skill/assets/question_quality_classifier.json"' in project

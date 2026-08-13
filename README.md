@@ -10,7 +10,7 @@ The same bundled engine works with **Codex, Claude Code, Gemini CLI, GitHub Copi
 - **Mock exam packages:** one generated question for each source-exam position, preserving LO, format, cognitive operation, difficulty, and choice count while changing the scenario and reasoning angle.
 - **Learner-only downloads:** one interactive `.html` file, optionally wrapped in a ZIP containing only that HTML. No manifest, validation report, source document, or cache is included.
 
-Every candidate passes schema, source-page, coverage, language, source-copy, duplicate, blueprint, and bundled PyTorch quality gates. Rejected content is regenerated instead of appearing in the learner package.
+Every candidate passes schema, source-page, coverage, language, source-copy, duplicate, blueprint, and bundled PyTorch quality gates. Supported platforms run the current PyTorch runtime; Intel Macs use a hash-verified portable export of the same float32 classifier. Rejected content is regenerated instead of appearing in the learner package.
 
 ## Install
 

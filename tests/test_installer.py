@@ -30,6 +30,7 @@ def test_installer_copies_complete_skill_without_local_caches(
     assert (destination / "SKILL.md").is_file()
     assert (destination / "scripts" / "run.py").is_file()
     assert (destination / "assets" / "question_quality_classifier.pt").is_file()
+    assert (destination / "assets" / "question_quality_classifier.json").is_file()
     assert not (destination / ".venv").exists()
     assert not any(path.name == "__pycache__" for path in destination.rglob("*"))
 
