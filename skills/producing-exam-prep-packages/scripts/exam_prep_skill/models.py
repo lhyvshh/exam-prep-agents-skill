@@ -39,6 +39,13 @@ class WorkspaceConfig(FrozenModel):
     preset: str = "generic"
 
 
+class GenerationRegistry(FrozenModel):
+    """Accepted content fingerprints retained across package builds."""
+
+    prompts: tuple[str, ...] = ()
+    responses: tuple[str, ...] = ()
+
+
 class SourceRef(FrozenModel):
     """Grounding evidence from a private source document."""
 

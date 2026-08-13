@@ -23,6 +23,7 @@ from exam_prep_skill.models import (
     CandidateSubmission,
     ExamQuestionCandidate,
     FlashcardCandidate,
+    GenerationRegistry,
     LearnerExam,
     LearnerExamQuestion,
     LearnerFlashcard,
@@ -73,6 +74,9 @@ def _require_workspace(workspace: Path) -> WorkspaceStore:
 
 
 def _checkpoint_path() -> Path:
+    packaged = Path(__file__).with_name("assets") / "question_quality_classifier.pt"
+    if packaged.is_file():
+        return packaged
     return Path(__file__).parents[2] / "assets" / "question_quality_classifier.pt"
 
 
@@ -172,7 +176,12 @@ def prepare_flashcards(
             human=human,
         )
         raise typer.Exit(code=2)
-    QueueStore.create(store.queue_dir, items)
+    registry = store.load_generation_registry()
+    QueueStore.create(
+        store.queue_dir,
+        items,
+        registry=registry,
+    )
     store.save_workflow(
         WorkflowState(
             kind=PackageKind.FLASHCARDS,
@@ -219,7 +228,12 @@ def prepare_exam(
             human=human,
         )
         raise typer.Exit(code=2)
-    QueueStore.create(store.queue_dir, items)
+    registry = store.load_generation_registry()
+    QueueStore.create(
+        store.queue_dir,
+        items,
+        registry=registry,
+    )
     store.save_workflow(
         WorkflowState(
             kind=PackageKind.MOCK_EXAM,
@@ -315,9 +329,15 @@ def submit(
     payload_json = candidate.expanduser().resolve().read_text(encoding="utf-8")
     payload = json.loads(payload_json)
     item_id = str(payload.get("item_id", ""))
-    result = QueueStore.open(store.queue_dir, _quality_gate()).submit(
-        CandidateSubmission(item_id=item_id, payload_json=payload_json)
-    )
+    queue = QueueStore.open(store.queue_dir, _quality_gate())
+    result = queue.submit(CandidateSubmission(item_id=item_id, payload_json=payload_json))
+    if result.accepted:
+        store.save_generation_registry(
+            GenerationRegistry(
+                prompts=queue.state.registry_prompts,
+                responses=queue.state.registry_responses,
+            )
+        )
     body = result.model_dump(mode="json")
     body["status"] = "accepted" if result.accepted else "rejected"
     body["message"] = (

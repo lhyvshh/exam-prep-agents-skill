@@ -154,22 +154,36 @@ def test_mock_exam_workflow_preserves_blueprint_and_renders_explanations(tmp_pat
     for index, prompt in enumerate(prompts, start=1):
         next_result = runner.invoke(app, ["next", str(workspace)])
         item = json.loads(next_result.stdout)["item"]
-        payload = {
-            "item_id": item["item_id"],
-            "question_id": f"generated-{index}",
-            "prompt": prompt,
-            "choices": [
+        choices = (
+            [
                 "Weight every stated loss by its probability",
                 "Use only the largest possible loss",
                 "Ignore outcomes below one-half probability",
                 "Replace expected loss with the loss dispersion",
-            ],
-            "correct_choice": "A",
-            "explanation": (
+            ]
+            if index == 1
+            else ["0 units", "3 units", "9 units", "12 units"]
+        )
+        explanation = (
+            (
                 "Choice A is correct because expected loss weights every possible outcome by "
                 "its probability. The other choices omit outcomes or confuse the mean with "
                 "dispersion."
-            ),
+            )
+            if index == 1
+            else (
+                "Choice B is correct because 25% multiplied by a 12-unit loss equals 3 units, "
+                "while the zero-loss outcome contributes nothing. The other values do not apply "
+                "the stated probability correctly."
+            )
+        )
+        payload = {
+            "item_id": item["item_id"],
+            "question_id": f"generated-{index}",
+            "prompt": prompt,
+            "choices": choices,
+            "correct_choice": "B" if index == 2 else "A",
+            "explanation": explanation,
             "verification": (
                 "Recomputed from the stated probabilities and checked against the cited book "
                 "definition."
@@ -191,3 +205,25 @@ def test_mock_exam_workflow_preserves_blueprint_and_renders_explanations(tmp_pat
     assert "Synthetic Mock Exam" in html
     assert "answer-explanation" in html
     assert "source-pages" in html
+
+    prepared_again = runner.invoke(
+        app,
+        [
+            "prepare-exam",
+            str(workspace),
+            str(fixtures / "frm_style_book.txt"),
+            "--source-exam",
+            str(fixtures / "source_exam.txt"),
+            "--preset",
+            "frm-part-1",
+            "--title",
+            "A Different Mock Exam",
+        ],
+    )
+    assert prepared_again.exit_code == 0
+
+    repeated = runner.invoke(app, ["submit", str(workspace), str(tmp_path / "question-1.json")])
+    assert repeated.exit_code == 0
+    repeated_payload = json.loads(repeated.stdout)
+    assert repeated_payload["accepted"] is False
+    assert "duplicate_question" in {issue["code"] for issue in repeated_payload["issues"]}

@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from exam_prep_skill.models import (
     CandidateSubmission,
+    GenerationRegistry,
     PackageKind,
     SourceRef,
     ValidationResult,
@@ -41,6 +42,7 @@ class QueueState(BaseModel):
 
     items: tuple[WorkItem, ...]
     registry_prompts: tuple[str, ...] = ()
+    registry_responses: tuple[str, ...] = ()
     max_attempts: int = Field(default=3, ge=1)
 
 
@@ -148,10 +150,17 @@ class QueueStore:
         gate: QualityGate | None = None,
         *,
         max_attempts: int = 3,
+        registry: GenerationRegistry | None = None,
     ) -> QueueStore:
         """Create a new resumable queue."""
         root.mkdir(parents=True, exist_ok=True)
-        state = QueueState(items=items, max_attempts=max_attempts)
+        seed = registry or GenerationRegistry()
+        state = QueueState(
+            items=items,
+            max_attempts=max_attempts,
+            registry_prompts=seed.prompts,
+            registry_responses=seed.responses,
+        )
         store = cls(root, state, gate)
         store._persist()
         return store
@@ -188,7 +197,12 @@ class QueueStore:
                 issues=(),
             )
         item = self.state.items[index]
-        result, accepted_prompt = self.gate.validate(item, submission, self.state.registry_prompts)
+        result, accepted_prompt, accepted_response = self.gate.validate(
+            item,
+            submission,
+            self.state.registry_prompts,
+            self.state.registry_responses,
+        )
         attempts = item.attempts + 1
         status = WorkItemStatus.ACCEPTED if result.accepted else WorkItemStatus.PENDING
         if not result.accepted and attempts >= self.state.max_attempts:
@@ -197,8 +211,11 @@ class QueueStore:
         items = list(self.state.items)
         items[index] = updated_item
         registry = self.state.registry_prompts
+        response_registry = self.state.registry_responses
         if result.accepted and accepted_prompt is not None:
             registry = (*registry, accepted_prompt)
+            if accepted_response is not None:
+                response_registry = (*response_registry, accepted_response)
             accepted_dir = self.root / "accepted"
             accepted_dir.mkdir(parents=True, exist_ok=True)
             (accepted_dir / f"{item.item_id}.json").write_text(
@@ -206,7 +223,11 @@ class QueueStore:
                 encoding="utf-8",
             )
         self.state = self.state.model_copy(
-            update={"items": tuple(items), "registry_prompts": registry}
+            update={
+                "items": tuple(items),
+                "registry_prompts": registry,
+                "registry_responses": response_registry,
+            }
         )
         self._persist()
         return result

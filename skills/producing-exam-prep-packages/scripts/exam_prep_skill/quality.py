@@ -55,24 +55,28 @@ class QualityGate:
         item: WorkItem,
         submission: CandidateSubmission,
         registry_prompts: tuple[str, ...],
-    ) -> tuple[ValidationResult, str | None]:
+        registry_responses: tuple[str, ...] = (),
+    ) -> tuple[ValidationResult, str | None, str | None]:
         """Validate a candidate and return its prompt for accepted deduplication."""
         match item.kind:
             case PackageKind.FLASHCARDS:
-                return self._validate_card(item, submission, registry_prompts)
+                return self._validate_card(item, submission, registry_prompts, registry_responses)
             case PackageKind.MOCK_EXAM:
-                return self._validate_question(item, submission, registry_prompts)
+                return self._validate_question(
+                    item, submission, registry_prompts, registry_responses
+                )
 
     def _validate_card(
         self,
         item: WorkItem,
         submission: CandidateSubmission,
         registry_prompts: tuple[str, ...],
-    ) -> tuple[ValidationResult, str | None]:
+        registry_responses: tuple[str, ...],
+    ) -> tuple[ValidationResult, str | None, str | None]:
         try:
             candidate = FlashcardCandidate.model_validate_json(submission.payload_json)
         except ValidationError as error:
-            return _schema_failure(item, error), None
+            return _schema_failure(item, error), None, None
         issues: list[ValidationIssue] = []
         if candidate.item_id != item.item_id:
             issues.append(_issue("item_mismatch", "Candidate item identifier does not match."))
@@ -89,33 +93,39 @@ class QualityGate:
             for existing in registry_prompts
         ):
             issues.append(_issue("duplicate_card", "Card is too similar to accepted material."))
+        if any(
+            _similarity(candidate.answer, existing) >= DUPLICATE_THRESHOLD
+            for existing in registry_responses
+        ):
+            issues.append(_issue("duplicate_answer", "Card answer repeats accepted material."))
         if _language_issue(candidate.prompt + " " + candidate.answer):
             issues.append(_issue("language_quality", "Card contains malformed or vague language."))
         if issues:
-            return _rejected(item, issues), None
+            return _rejected(item, issues), None, None
         score = self._score(candidate.prompt, candidate.answer)
         if score < QUALITY_THRESHOLD:
-            return _quality_rejection(item, score, self), None
-        return _accepted(item, score, self), candidate.prompt
+            return _quality_rejection(item, score, self), None, None
+        return _accepted(item, score, self), candidate.prompt, candidate.answer
 
     def _validate_question(
         self,
         item: WorkItem,
         submission: CandidateSubmission,
         registry_prompts: tuple[str, ...],
-    ) -> tuple[ValidationResult, str | None]:
+        registry_responses: tuple[str, ...],
+    ) -> tuple[ValidationResult, str | None, str | None]:
         try:
             candidate = ExamQuestionCandidate.model_validate_json(submission.payload_json)
         except ValidationError as error:
-            return _schema_failure(item, error), None
+            return _schema_failure(item, error), None, None
         blueprint = json.loads(item.blueprint_json or "{}")
-        issues = _question_issues(item, candidate, blueprint, registry_prompts)
+        issues = _question_issues(item, candidate, blueprint, registry_prompts, registry_responses)
         if issues:
-            return _rejected(item, issues), None
+            return _rejected(item, issues), None, None
         score = self._score(candidate.prompt, candidate.explanation)
         if score < QUALITY_THRESHOLD:
-            return _quality_rejection(item, score, self), None
-        return _accepted(item, score, self), candidate.prompt
+            return _quality_rejection(item, score, self), None, None
+        return _accepted(item, score, self), candidate.prompt, "\n".join(candidate.choices)
 
     def _score(self, prompt: str, explanation: str) -> float:
         prompt_words = len(TOKEN_PATTERN.findall(prompt.casefold()))
@@ -139,9 +149,12 @@ def _question_issues(
     candidate: ExamQuestionCandidate,
     blueprint: dict[str, str | list[str] | int],
     registry_prompts: tuple[str, ...],
+    registry_responses: tuple[str, ...],
 ) -> list[ValidationIssue]:
     issues = _structural_question_issues(item, candidate, blueprint)
-    issues.extend(_similarity_question_issues(candidate, blueprint, registry_prompts))
+    issues.extend(
+        _similarity_question_issues(candidate, blueprint, registry_prompts, registry_responses)
+    )
     issues.extend(_language_question_issues(candidate))
     return issues
 
@@ -185,6 +198,7 @@ def _similarity_question_issues(
     candidate: ExamQuestionCandidate,
     blueprint: dict[str, str | list[str] | int],
     registry_prompts: tuple[str, ...],
+    registry_responses: tuple[str, ...],
 ) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     source_prompt = str(blueprint.get("prompt", ""))
@@ -197,6 +211,11 @@ def _similarity_question_issues(
         issues.append(
             _issue("duplicate_question", "Question overlaps accepted generated material.")
         )
+    answer_set = "\n".join(candidate.choices)
+    if any(
+        _similarity(answer_set, existing) >= DUPLICATE_THRESHOLD for existing in registry_responses
+    ):
+        issues.append(_issue("duplicate_answers", "Answer set repeats accepted material."))
     return issues
 
 

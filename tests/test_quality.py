@@ -24,7 +24,11 @@ def _item() -> WorkItem:
 
 
 def _submission(
-    item_id: str, *, prompt: str, choices: list[str] | None = None
+    item_id: str,
+    *,
+    prompt: str,
+    choices: list[str] | None = None,
+    question_type: str = "conceptual",
 ) -> CandidateSubmission:
     payload = {
         "item_id": item_id,
@@ -45,7 +49,7 @@ def _submission(
         "verification": "Checked against the cited expected-loss definition on the source page.",
         "source_pages": [1],
         "objective_code": "LO 1.a",
-        "question_type": "conceptual",
+        "question_type": question_type,
         "difficulty": "exam",
     }
     return CandidateSubmission(item_id=item_id, payload_json=json.dumps(payload))
@@ -89,6 +93,31 @@ def test_gate_rejects_duplicate_across_generated_exam_registry(tmp_path: Path) -
 
     assert not result.accepted
     assert "duplicate_question" in {issue.code for issue in result.issues}
+
+
+def test_gate_rejects_reused_answer_set_across_generated_questions(tmp_path: Path) -> None:
+    first, second = build_exam_items(
+        parse_exam_text("Synthetic Exam", (FIXTURES / "source_exam.txt").read_text())
+    )
+    store = QueueStore.create(tmp_path, (first, second), QualityGate(CHECKPOINT))
+    first_submission = _submission(
+        first.item_id,
+        prompt="A risk team reviews several outcomes. Which method computes expected loss?",
+    )
+    assert store.submit(first_submission).accepted
+
+    second_submission = _submission(
+        second.item_id,
+        prompt=(
+            "A position has multiple probability-weighted losses. What calculation gives its "
+            "expected monetary loss?"
+        ),
+        question_type="calculation",
+    )
+    result = store.submit(second_submission)
+
+    assert not result.accepted
+    assert "duplicate_answers" in {issue.code for issue in result.issues}
 
 
 def test_gate_exhausts_item_without_lowering_threshold(tmp_path: Path) -> None:

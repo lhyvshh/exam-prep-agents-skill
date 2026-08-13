@@ -30,6 +30,9 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["skills/producing-exam-prep-packages/scripts/exam_prep_skill"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"skills/producing-exam-prep-packages/assets/question_quality_classifier.pt" = "exam_prep_skill/assets/question_quality_classifier.pt"
+
 [tool.basedpyright]
 typeCheckingMode = "strict"
 pythonVersion = "3.11"

@@ -8,7 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from exam_prep_skill.extraction import CurriculumRecord
-from exam_prep_skill.models import PackageKind, WorkspaceConfig
+from exam_prep_skill.models import GenerationRegistry, PackageKind, WorkspaceConfig
 
 
 class WorkflowState(BaseModel):
@@ -98,4 +98,17 @@ class WorkspaceStore:
         """Load the active package workflow."""
         return WorkflowState.model_validate_json(
             (self.state_dir / "workflow.json").read_text(encoding="utf-8")
+        )
+
+    def load_generation_registry(self) -> GenerationRegistry:
+        """Load accepted fingerprints across current and previous packages."""
+        path = self.state_dir / "generation_registry.json"
+        if not path.is_file():
+            return GenerationRegistry()
+        return GenerationRegistry.model_validate_json(path.read_text(encoding="utf-8"))
+
+    def save_generation_registry(self, registry: GenerationRegistry) -> None:
+        """Persist accepted fingerprints outside learner artifacts."""
+        (self.state_dir / "generation_registry.json").write_text(
+            registry.model_dump_json(indent=2), encoding="utf-8"
         )
