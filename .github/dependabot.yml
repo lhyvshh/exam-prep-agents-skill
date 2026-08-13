@@ -10,6 +10,9 @@ updates:
       python-runtime:
         patterns:
           - "*"
+    ignore:
+      # Dependabot's uv updater cannot update this package's split Intel macOS marker.
+      - dependency-name: pymupdf
 
   - package-ecosystem: github-actions
     directory: /
