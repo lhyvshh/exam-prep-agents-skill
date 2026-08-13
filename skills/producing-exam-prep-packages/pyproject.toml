@@ -1,6 +1,6 @@
 [project]
 name = "exam-prep-agent-skill-runtime"
-version = "0.1.0"
+version = "0.1.1"
 requires-python = ">=3.11"
 dependencies = [
   "numpy>=2.4.6,<3",

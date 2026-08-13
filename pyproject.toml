@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "exam-prep-agents-skill"
-version = "0.1.0"
+version = "0.1.1"
 description = "Portable agent skill for validated offline exam-prep packages"
 requires-python = ">=3.11"
 dependencies = [
