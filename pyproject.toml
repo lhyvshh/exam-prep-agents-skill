@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.26"]
+requires = ["hatchling>=1.31.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Portable agent skill for validated offline exam-prep packages"
 requires-python = ">=3.11"
 dependencies = [
-  "numpy>=1.26,<2",
+  "numpy>=2.4.6,<3",
   "pydantic>=2.8,<3",
   "pymupdf>=1.24,<1.28; sys_platform == 'darwin' and platform_machine == 'x86_64'",
   "pymupdf>=1.24,<2; sys_platform != 'darwin' or platform_machine != 'x86_64'",
